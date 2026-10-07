@@ -58,6 +58,83 @@ conn = psycopg2.connect(
 
 `branches`, `customers`, `delivery_partners`, `customer_addresses`, `staff`, `menu`, `inventory`, `orders`, `order_items`. Inventory is per-branch (`PRIMARY KEY (branch_id, menu_id)`), and `orders` is the hub that ties a branch, a customer, and line items together.
 
+```mermaid
+erDiagram
+    BRANCHES ||--o{ INVENTORY : stocks
+    MENU ||--o{ INVENTORY : "stocked as"
+    BRANCHES ||--o{ ORDERS : receives
+    CUSTOMERS ||--o{ ORDERS : places
+    DELIVERY_PARTNERS |o--o{ ORDERS : delivers
+    BRANCHES ||--o{ DELIVERY_PARTNERS : "based at"
+    BRANCHES ||--o{ STAFF : employs
+    CUSTOMERS ||--o{ CUSTOMER_ADDRESSES : saves
+    ORDERS ||--|{ ORDER_ITEMS : contains
+    MENU ||--o{ ORDER_ITEMS : "ordered as"
+    BRANCHES {
+      int branch_id PK
+      string branch_name
+      string city
+      numeric latitude
+      numeric longitude
+    }
+    CUSTOMERS {
+      int customer_id PK
+      string name
+      string email UK
+      string password_hash
+    }
+    STAFF {
+      int staff_id PK
+      string email UK
+      string password_hash
+      int branch_id FK
+    }
+    CUSTOMER_ADDRESSES {
+      int address_id PK
+      int customer_id FK
+      string label
+      string street
+      string city
+    }
+    DELIVERY_PARTNERS {
+      int partner_id PK
+      string name
+      string email UK
+      string password_hash
+      string status
+      int current_branch_id FK
+    }
+    MENU {
+      int id PK
+      string pizza_name
+      numeric price
+      string diet_type
+      string description
+      string ingredients
+    }
+    INVENTORY {
+      int branch_id PK
+      int menu_id PK
+      int stock_quantity
+    }
+    ORDERS {
+      int order_id PK
+      int branch_id FK
+      int customer_id FK
+      int partner_id FK
+      string delivery_mode
+      numeric total_price
+      string status
+    }
+    ORDER_ITEMS {
+      int item_id PK
+      int order_id FK
+      int menu_id FK
+      int quantity
+      numeric unit_price
+    }
+```
+
 ## Connecting from your own machine
 
 Prefer `psql`? Open the project's **Connect** dialog in the Lakebase app, copy the connection string, and:
