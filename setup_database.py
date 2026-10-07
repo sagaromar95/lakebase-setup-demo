@@ -24,6 +24,11 @@
 # MAGIC %md
 # MAGIC ## 1. Config
 # MAGIC Edit these, then **Run All**. In most cases only `INSTANCE_NAME` needs changing.
+# MAGIC
+# MAGIC `INSTANCE_NAME` is your Lakebase **project name** and `DATABASE_NAME` is the Postgres
+# MAGIC database — both come straight from the project's **Connect** dialog (highlighted below):
+# MAGIC
+# MAGIC ![Where to find the project name and database name](https://raw.githubusercontent.com/sagaromar95/lakebase-setup-demo/main/docs/connect_names.png)
 
 # COMMAND ----------
 
