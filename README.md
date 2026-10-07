@@ -23,7 +23,7 @@ The schema comes from *Data on Tap*, a pizza-ordering app built on Lakebase — 
 
 ## Run it
 
-1. **Clone this repo into Databricks Repos.** In your workspace: **Workspace → Repos → Add repo**, paste `https://github.com/sagaromar95/lakebase-setup-demo.git`, and clone.
+1. **Get the files into Databricks.** Either clone the repo into Databricks Repos — **Workspace → Repos → Add repo** (or **Create → Git folder**), paste `https://github.com/sagaromar95/lakebase-setup-demo.git`, and create (no login needed, since it's public) — or, if you'd rather skip git, **Download ZIP** from the GitHub page and import `setup_database.py` via **Workspace → Import**. More detail: [Databricks Repos](https://docs.databricks.com/aws/en/repos/).
 2. **Open `setup_database.py`.** Attach it to serverless compute.
 3. **Set the widgets** at the top of the notebook (they appear after the first cell runs):
    - `instance_name` — your Lakebase **project name** (e.g. `lakebase-demo`). This is the one value you must change.

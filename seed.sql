@@ -3,12 +3,12 @@
 
 -- Branches: 6 total, 2 per city (Stockholm, Goteborg, Malmo). lat/long left NULL for now.
 INSERT INTO branches (branch_name, city, address, latitude, longitude) VALUES
-    ('Pizza Hut Sodermalm',     'Stockholm', 'Gotgatan 12, Stockholm',        59.376065, 17.937925),
-    ('Pizza Hut Ostermalm',     'Stockholm', 'Sturegatan 4, Stockholm',       59.337600, 18.084600),
-    ('Pizza Hut Centrum',       'Goteborg',  'Kungsgatan 20, Goteborg',       57.707500, 11.967500),
-    ('Pizza Hut Majorna',       'Goteborg',  'Karl Johansgatan 40, Goteborg', 57.696000, 11.920000),
-    ('Pizza Hut Centrum',       'Malmo',     'Sodergatan 15, Malmo',          55.605000, 13.000000),
-    ('Pizza Hut Vastra Hamnen', 'Malmo',     'Isbergs gata 3, Malmo',         55.615000, 12.977000);
+    ('Data on Tap Sodermalm',     'Stockholm', 'Gotgatan 12, Stockholm',        59.376065, 17.937925),
+    ('Data on Tap Ostermalm',     'Stockholm', 'Sturegatan 4, Stockholm',       59.337600, 18.084600),
+    ('Data on Tap Centrum',       'Goteborg',  'Kungsgatan 20, Goteborg',       57.707500, 11.967500),
+    ('Data on Tap Majorna',       'Goteborg',  'Karl Johansgatan 40, Goteborg', 57.696000, 11.920000),
+    ('Data on Tap Centrum',       'Malmo',     'Sodergatan 15, Malmo',          55.605000, 13.000000),
+    ('Data on Tap Vastra Hamnen', 'Malmo',     'Isbergs gata 3, Malmo',         55.615000, 12.977000);
 
 -- Menu: 6 pizzas, brand-wide catalog. description + ingredients feed the pizza detail page.
 INSERT INTO menu (pizza_name, price, diet_type, description, ingredients) VALUES
