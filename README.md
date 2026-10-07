@@ -25,10 +25,10 @@ The schema comes from *Data on Tap*, a pizza-ordering app built on Lakebase — 
 
 1. **Get the files into Databricks.** Either clone the repo into Databricks Repos — **Workspace → Repos → Add repo** (or **Create → Git folder**), paste `https://github.com/sagaromar95/lakebase-setup-demo.git`, and create (no login needed, since it's public) — or, if you'd rather skip git, **Download ZIP** from the GitHub page and import `setup_database.py` via **Workspace → Import**. More detail: [Databricks Repos](https://docs.databricks.com/aws/en/repos/).
 2. **Open `setup_database.py`.** Attach it to serverless compute.
-3. **Set the widgets** at the top of the notebook (they appear after the first cell runs):
-   - `instance_name` — your Lakebase **project name** (e.g. `lakebase-demo`). This is the one value you must change.
-   - `database_name` — leave as `databricks_postgres` (the default database every project ships with).
-   - Leave the rest at their defaults (`run_schema`, `run_seed`, and `verify` are all `yes`).
+3. **Edit the config cell** at the top of the notebook:
+   - `INSTANCE_NAME` — your Lakebase **project name**. This is the one value you must change.
+   - `DATABASE_NAME` — leave as `databricks_postgres` (the default database every project ships with).
+   - Leave `RUN_SCHEMA`, `RUN_SEED`, and `VERIFY` as `True`.
 4. **Run All.**
 
 The notebook connects, creates the tables, loads the seed data, and prints the table list with row counts. Re-running is safe — `schema.sql` drops and recreates, `seed.sql` reloads fresh.

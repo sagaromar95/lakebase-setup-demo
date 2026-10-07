@@ -6,9 +6,9 @@
 # MAGIC %md
 # MAGIC # Data on Tap — Database Setup
 # MAGIC
-# MAGIC Parametrized notebook to create and seed the Lakebase (Postgres) schema by running
-# MAGIC the `.sql` files that live in this Git repo. Fill in the widgets at the top, then
-# MAGIC **Run All**.
+# MAGIC A small notebook to create and seed the Lakebase (Postgres) schema by running the
+# MAGIC `.sql` files in this repo. Edit the config cell at the top (just your Lakebase
+# MAGIC project name), then **Run All**.
 # MAGIC
 # MAGIC - Connects to the Lakebase instance with an OAuth token generated in code (no password).
 # MAGIC - Reads `schema.sql` / `seed.sql` from the repo and executes them.
@@ -22,32 +22,22 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1. Parameters
-# MAGIC Set these via the widget bar at the top of the notebook (they appear after this cell runs).
-
-# COMMAND ----------
-
-dbutils.widgets.text("instance_name", "data-on-tap", "Lakebase instance name")
-dbutils.widgets.text("database_name", "databricks_postgres", "Postgres database name")
-dbutils.widgets.text("pg_user", "", "Postgres user (blank = current Databricks user)")
-dbutils.widgets.text("sql_dir", "", "Folder holding the .sql files (blank = this notebook's folder)")
-dbutils.widgets.text("app_client_id", "", "App service-principal client id to GRANT access (blank = skip)")
-dbutils.widgets.dropdown("run_schema", "yes", ["yes", "no"], "Run schema.sql?")
-dbutils.widgets.dropdown("run_seed", "yes", ["yes", "no"], "Run seed.sql?")
-dbutils.widgets.dropdown("verify", "yes", ["yes", "no"], "Verify with SELECTs at the end?")
+# MAGIC ## 1. Config
+# MAGIC Edit these, then **Run All**. In most cases only `INSTANCE_NAME` needs changing.
 
 # COMMAND ----------
 
 import os
 
-INSTANCE_NAME = dbutils.widgets.get("instance_name").strip()
-DATABASE_NAME = dbutils.widgets.get("database_name").strip()
-PG_USER = dbutils.widgets.get("pg_user").strip()
-SQL_DIR = dbutils.widgets.get("sql_dir").strip() or os.getcwd()
-APP_CLIENT_ID = dbutils.widgets.get("app_client_id").strip()
-RUN_SCHEMA = dbutils.widgets.get("run_schema") == "yes"
-RUN_SEED = dbutils.widgets.get("run_seed") == "yes"
-VERIFY = dbutils.widgets.get("verify") == "yes"
+# ── Config: edit INSTANCE_NAME, then Run All ──────────────────────────────
+INSTANCE_NAME = "your-lakebase-project"   # <-- your Lakebase project name (see README)
+DATABASE_NAME = "databricks_postgres"     # the default database every project ships with
+RUN_SCHEMA    = True                      # run schema.sql (drops + recreates the tables)
+RUN_SEED      = True                      # run seed.sql  (loads demo data)
+VERIFY        = True                      # print the table list + row counts at the end
+# ──────────────────────────────────────────────────────────────────────────
+
+SQL_DIR = os.getcwd()  # the repo folder holding schema.sql / seed.sql / backend/
 
 print(f"instance : {INSTANCE_NAME}")
 print(f"database : {DATABASE_NAME}")
@@ -98,7 +88,7 @@ def run_sql_file(filename):
     path = os.path.join(SQL_DIR, filename)
     if not os.path.exists(path):
         raise FileNotFoundError(
-            f"Could not find {path}. Set the 'sql_dir' widget to the folder holding {filename}."
+            f"Could not find {path}. Run this notebook from the repo folder that holds {filename}."
         )
     with open(path) as f:
         sql = f.read()
@@ -130,48 +120,6 @@ if RUN_SEED:
     run_sql_file("seed.sql")
 else:
     print("Skipped seed.sql (run_seed = no)")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 5b. Grant the Databricks App access
-# MAGIC
-# MAGIC A deployed app connects as its **service principal**, whose Postgres role name is
-# MAGIC the SP's **client id**. Tables created here are owned by *you*, so the app's role
-# MAGIC needs privileges granted. Set the `app_client_id` widget to your app's service
-# MAGIC principal client id (find it on the app's page in Databricks, or it is the
-# MAGIC `PGUSER` value inside the app). Leave blank to skip.
-# MAGIC
-# MAGIC Run as the table owner (this notebook connects as you). Grants cover current
-# MAGIC tables/sequences and set default privileges so future ones are covered too.
-
-# COMMAND ----------
-
-if APP_CLIENT_ID:
-    # Role name is an identifier, not a literal — quote it and reject anything
-    # that isn't a plain client id so it can't be used for SQL injection.
-    import re
-
-    if not re.fullmatch(r"[0-9a-fA-F-]+", APP_CLIENT_ID):
-        raise ValueError(f"app_client_id looks unexpected: {APP_CLIENT_ID!r}")
-
-    role = '"' + APP_CLIENT_ID + '"'
-    grants = f"""
-        GRANT USAGE ON SCHEMA public TO {role};
-        GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {role};
-        GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {role};
-        ALTER DEFAULT PRIVILEGES IN SCHEMA public
-            GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {role};
-        ALTER DEFAULT PRIVILEGES IN SCHEMA public
-            GRANT USAGE, SELECT ON SEQUENCES TO {role};
-    """
-    with connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(grants)
-        conn.commit()
-    print(f"Granted table/sequence privileges to role {role}")
-else:
-    print("Skipped grants (app_client_id blank)")
 
 # COMMAND ----------
 
