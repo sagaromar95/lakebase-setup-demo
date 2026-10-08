@@ -20,7 +20,7 @@ lakebase-setup-demo/
 ## Requirements
 
 - Bash 3.2+ (including macOS's built-in Bash), Databricks CLI, jq, and psql.
-- CLI command help checked against v1.20.0. `branch-demo` checks that `create-branch --ttl` is available. Upgrade older CLIs if needed.
+- Checked against a recent Databricks CLI (run `databricks --version` to see yours). `branch-demo` checks that `create-branch --ttl` is available — it's a recent addition, so upgrade older CLIs if that check fails.
 - A Databricks workspace with Lakebase Autoscaling available in its region, plus permission to manage the demo project and access its Postgres database.
 - Interactive user OAuth authentication. This script is for a personal hands-on walkthrough, not unattended service-principal automation.
 

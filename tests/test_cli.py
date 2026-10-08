@@ -19,7 +19,7 @@ if pathlib.Path(sys.argv[0]).name=='psql':
   print(0 if host!='source.example.com' and (root/'deleted').exists() else 36)
  else: print('connected')
  sys.exit()
-if args==['--version']:print('Databricks CLI v1.20.0');sys.exit()
+if args==['--version']:print('Databricks CLI vMOCK');sys.exit()
 assert args[:2]==['--profile','lakebase-demo']
 a=args[2:];cmd=a[1] if len(a)>1 else ''
 if a[:2]==['current-user','me']:print(json.dumps({'userName':'demo@example.com'}));sys.exit()
