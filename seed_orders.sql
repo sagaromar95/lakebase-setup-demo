@@ -7,10 +7,13 @@
 -- Deterministic: no random(), so every run produces the SAME figures and
 -- your screenshots stay stable. Safe to re-run — it clears prior orders first.
 --
+-- Counts are fixed at 30 orders and 90 line items. Pizzas are weighted so sales
+-- vary and "best-seller" has a clear winner (by units sold):
+--   Pepperoni > Margherita > BBQ Chicken > Veggie Supreme > Four Cheese > Vegan Garden.
+--
 -- Note: this intentionally does NOT decrement `inventory`. It keeps the seed
 -- simple, avoids negative stock, and leaves the 36 inventory rows (and the
--- Post 2 branching demo) untouched. Stock vs. sales reconciliation is the
--- application's job, not this analytics fixture's.
+-- Post 2 branching demo) untouched.
 
 BEGIN;
 
@@ -34,22 +37,30 @@ SELECT
     CASE WHEN i % 14 >= 2 THEN 'delivered' ELSE 'preparing' END AS status
 FROM generate_series(1, 30) AS g(i);
 
--- 2) Line items: 3 distinct pizzas per order, quantities 1-3, price snapshotted.
+-- 2) Line items: 90 total, weighted so pizzas sell different amounts.
+--    item_counts sums to 90 (= 30 orders x 3 items). Quantities cycle 1-3.
+--    Items are interleaved across rounds so each order gets a mix of pizzas,
+--    then grouped three-to-an-order onto order_id 500001..500030.
+WITH item_counts(menu_id, n) AS (
+    VALUES (5, 20), (1, 18), (6, 16), (3, 14), (2, 12), (4, 10)   -- 20+18+16+14+12+10 = 90
+),
+rounds AS (
+    SELECT ic.menu_id,
+           gs.k                   AS round,
+           1 + ((gs.k - 1) % 3)   AS quantity          -- 1,2,3,1,2,3,...
+    FROM item_counts ic
+    CROSS JOIN LATERAL generate_series(1, ic.n) AS gs(k)
+),
+numbered AS (
+    SELECT menu_id, quantity,
+           row_number() OVER (ORDER BY round, menu_id) AS rn
+    FROM rounds
+)
 INSERT INTO order_items (order_id, menu_id, quantity, unit_price, line_total)
-SELECT
-    o.order_id,
-    mi.menu_id,
-    mi.quantity,
-    m.price,
-    mi.quantity * m.price
-FROM orders o
-CROSS JOIN LATERAL (
-    VALUES
-        (((o.order_id + 2) % 6) + 1, 1 + ((o.order_id    ) % 3)),
-        (((o.order_id + 4) % 6) + 1, 1 + ((o.order_id + 1) % 3)),
-        (((o.order_id + 6) % 6) + 1, 1 + ((o.order_id + 2) % 3))
-) AS mi(menu_id, quantity)
-JOIN menu m ON m.id = mi.menu_id;
+SELECT 500001 + ((n.rn - 1) / 3),            -- 3 items per order -> 500001..500030
+       n.menu_id, n.quantity, m.price, n.quantity * m.price
+FROM numbered n
+JOIN menu m ON m.id = n.menu_id;
 
 -- 3) Roll the line items up into each order's money columns (VAT = 12%, Sweden).
 UPDATE orders o
@@ -65,6 +76,9 @@ WHERE s.order_id = o.order_id;
 
 COMMIT;
 
--- Sanity check (optional): should print 30 orders and ~90 line items.
+-- Sanity check (optional): 30 orders, 90 line items, and a best-seller ranking.
 -- SELECT (SELECT count(*) FROM orders) AS orders,
 --        (SELECT count(*) FROM order_items) AS order_items;
+-- SELECT m.pizza_name, SUM(oi.quantity) AS pizzas_sold
+-- FROM order_items oi JOIN menu m ON m.id = oi.menu_id
+-- GROUP BY m.pizza_name ORDER BY pizzas_sold DESC;
