@@ -8,8 +8,8 @@ The schema comes from *Data on Tap*, a pizza-ordering app built on Lakebase — 
 
 | File | What it does |
 | --- | --- |
-| `setup_database.py` | Databricks notebook. Connects to your Lakebase project, runs `schema.sql` then `seed.sql`, and verifies. Re-runnable. |
-| `schema.sql` | DDL for all nine tables (drops and recreates, so it's safe to re-run). |
+| `setup_database.py` | Databricks notebook. Connects to your Lakebase project, runs `schema.sql` then `seed.sql`, and verifies. Re-running **resets** the demo tables. |
+| `schema.sql` | DDL for all nine tables. Drops and recreates them, so re-running wipes any existing data. |
 | `seed.sql` | Seed data — branches, menu, inventory, demo customers, staff, delivery partners. |
 | `backend/db.py` | All connection logic behind `get_connection()`. Mints a short-lived OAuth token via the Databricks SDK — never a static password. |
 
@@ -31,7 +31,7 @@ The schema comes from *Data on Tap*, a pizza-ordering app built on Lakebase — 
    - Leave `RUN_SCHEMA`, `RUN_SEED`, and `VERIFY` as `True`.
 4. **Run All.**
 
-The notebook connects, creates the tables, loads the seed data, and prints the table list with row counts. Re-running is safe — `schema.sql` drops and recreates, `seed.sql` reloads fresh.
+The notebook connects, creates the tables, loads the seed data, and prints the table list with row counts. Running it again is a **reset**, not a merge: `schema.sql` drops and recreates every table and `seed.sql` reloads from scratch, so any rows you added — orders included — are erased. Point it only at a throwaway demo project.
 
 ## How the connection works
 
