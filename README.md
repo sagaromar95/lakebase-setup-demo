@@ -11,6 +11,7 @@ The schema comes from *Data on Tap*, a pizza-ordering app built on Lakebase — 
 | `setup_database.py` | Databricks notebook. Connects to your Lakebase project, runs `schema.sql` then `seed.sql`, and verifies. Re-running **resets** the demo tables. |
 | `schema.sql` | DDL for all nine tables. Drops and recreates them, so re-running wipes any existing data. |
 | `seed.sql` | Seed data — branches, menu, inventory, demo customers, staff, delivery partners. |
+| `seed_orders.sql` | Demo orders + line items for the analytics walkthrough. Deterministic (~30 orders / ~90 items), VAT rolled up at 12%; safe to re-run. Run after `seed.sql`. |
 | `backend/db.py` | All connection logic behind `get_connection()`. Mints a short-lived OAuth token via the Databricks SDK — never a static password. |
 
 ## Prerequisites
