@@ -146,7 +146,3 @@ psql 'postgresql://<you>@<host>/databricks_postgres?sslmode=require'
 ```
 
 Quote the whole string — the `?` in `?sslmode=require` is a shell wildcard.
-
-## License
-
-MIT. Use it, fork it, break it on a branch.
