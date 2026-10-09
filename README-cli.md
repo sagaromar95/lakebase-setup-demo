@@ -120,6 +120,18 @@ This action:
 
 Keep the source quiet while demonstrating: concurrent writes can change counts. This is a row-count demonstration, not a complete integrity audit. If creation returns an ambiguous failure, the script reports the exact candidate branch instead of deleting an unconfirmed resource. If cleanup fails or the process is forcibly killed, the one-hour expiry is the fallback; inspect the branch in Lakebase. Compute and storage usage can still incur charges on paid accounts.
 
+### Or branch by hand
+
+`branch-demo` runs the whole isolation check in one shot. To do it step by step — and keep the branch to work in — use the granular verbs. The project and source branch come from your `CONFIG_PROJECT_ID` and the discovered default branch, so you pass only the new branch's name:
+
+```bash
+bash lakebase-demo.sh create-branch inventory-test    # 1h expiry; times it, prints "ready in Ns"
+bash lakebase-demo.sh connect --branch inventory-test # work in the copy
+bash lakebase-demo.sh delete-branch inventory-test    # remove it when done
+```
+
+`create-branch` reports how long the branch plus its read-write endpoint took to come online; the data itself is an instant copy-on-write snapshot. It prints only the branch name and timing — never the branch JSON or any credential.
+
 ## Options
 
 ```bash

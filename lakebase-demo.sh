@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# Companion to Lakebase from the Terminal. Requires Bash 3.2+, jq, psql,
-# and a current Databricks CLI supporting postgres create-branch --ttl.
-# Place beside schema.sql and seed.sql in the companion repository.
+# Companion to "Lakebase from the Terminal". One Bash file with a verb per
+# step: login, projects, create-project, status, connect, seed, verify,
+# create-branch / delete-branch (a timed branch you keep), and branch-demo
+# (the create -> mutate -> verify -> clean-up isolation check in one shot).
+# Run `bash lakebase-demo.sh help` for the full list.
+# Requires Bash 3.2+, jq, psql, and a current Databricks CLI supporting
+# postgres create-branch --ttl. Place beside schema.sql and seed.sql in the
+# companion repository.
 set +x                           # Never trace OAuth credentials, even with bash -x.
 set -euo pipefail
 
@@ -45,6 +50,8 @@ Actions:
   verify          Display table names and row counts
   branch-demo     Create an expiring branch, delete its inventory, verify source
                   is unchanged, and delete ONLY the branch created by this run
+  create-branch NAME  Create a branch NAME from the source (1h expiry); times it
+  delete-branch NAME  Delete the branch NAME
   help            Show this help
 
 Options (or corresponding environment variables):
@@ -67,6 +74,9 @@ Examples:
   bash lakebase-demo.sh seed
   bash lakebase-demo.sh verify
   bash lakebase-demo.sh branch-demo
+  bash lakebase-demo.sh create-branch inventory-test
+  bash lakebase-demo.sh connect --branch inventory-test
+  bash lakebase-demo.sh delete-branch inventory-test
 
 Seed requires you to type the exact target to confirm data deletion.
 Tokens are generated at connection time, never stored in this file or printed.
@@ -235,14 +245,39 @@ branch_demo() {
   log 'This demonstrates row-count isolation, not a full data-integrity comparison.'
   # EXIT trap deletes only the branch successfully created above.
 }
+create_branch() {
+  local name=$1 payload start elapsed
+  [[ -n "$name" ]] || die 'Usage: create-branch NAME'
+  valid_id "$name"
+  payload=$(jq -n --arg source "$SOURCE_BRANCH" '{spec:{source_branch:$source}}')
+  log "Creating branch $PROJECT/branches/$name from $SOURCE_BRANCH (expires in 1h)..."
+  start=$SECONDS
+  dbx postgres create-branch "$PROJECT" "$name" --ttl 1h --json "$payload" >/dev/null ||
+    die "Branch creation failed. Check $PROJECT/branches/$name."
+  elapsed=$((SECONDS - start))
+  log "Branch ready in ${elapsed}s (the branch plus its read-write endpoint)."
+  log "Connect to it with: bash lakebase-demo.sh connect --branch $name"
+}
+delete_branch() {
+  local name=$1
+  [[ -n "$name" ]] || die 'Usage: delete-branch NAME'
+  valid_id "$name"
+  dbx postgres delete-branch "$PROJECT/branches/$name" >/dev/null ||
+    die "Delete failed for $PROJECT/branches/$name."
+  log "Deleted branch $PROJECT/branches/$name."
+}
 
 ACTION=${1:-help}
 [[ $# -eq 0 ]] || shift
 case "$ACTION" in
   help|-h|--help) usage; exit 0 ;;
-  login|projects|create-project|status|connect|seed|verify|branch-demo) ;;
+  login|projects|create-project|status|connect|seed|verify|branch-demo|create-branch|delete-branch) ;;
   *) usage >&2; die "Unknown action: $ACTION" ;;
 esac
+BRANCH_ARG=""
+if [[ "$ACTION" == create-branch || "$ACTION" == delete-branch ]]; then
+  if [[ $# -gt 0 && "$1" != --* ]]; then BRANCH_ARG=$1; shift; fi
+fi
 while [[ $# -gt 0 ]]; do
   [[ $# -ge 2 && -n "$2" ]] || die "Missing value for $1"
   case "$1" in
@@ -273,7 +308,9 @@ if [[ "$ACTION" == create-project ]]; then
   dbx postgres create-project "$PROJECT_ID" --json "$payload"
   exit 0
 fi
+if [[ "$ACTION" == delete-branch ]]; then delete_branch "$BRANCH_ARG"; exit 0; fi
 resolve_source
+if [[ "$ACTION" == create-branch ]]; then create_branch "$BRANCH_ARG"; exit 0; fi
 resolve_endpoint "$SOURCE_BRANCH"
 SOURCE_ENDPOINT=$DB_ENDPOINT
 SOURCE_HOST=$DB_HOST
