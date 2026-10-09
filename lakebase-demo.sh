@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Companion to "Lakebase from the Terminal". One Bash file with a verb per
 # step: login, projects, create-project, status, connect, seed, verify,
-# create-branch / delete-branch (a timed branch you keep), and branch-demo
-# (the create -> mutate -> verify -> clean-up isolation check in one shot).
+# create-branch / delete-branch (a timed branch you keep), branch-demo (the
+# one-shot create -> mutate -> verify -> clean-up isolation check), and
+# register-catalog / query (register in Unity Catalog and run SQL as a table).
 # Run `bash lakebase-demo.sh help` for the full list.
 # Requires Bash 3.2+, jq, psql, and a current Databricks CLI supporting
 # postgres create-branch --ttl. Place beside schema.sql and seed.sql in the
@@ -23,6 +24,7 @@ CONFIG_PROFILE="lakebase-demo"
 CONFIG_BRANCH_ID=""                 # Empty = discover the default branch.
 CONFIG_DATABASE="databricks_postgres"
 CONFIG_SQL_DIR=""                   # Empty = folder containing this script.
+CONFIG_WAREHOUSE_ID=""              # Serverless SQL warehouse for `query`; empty = auto-discover.
 # Do not put passwords or access tokens in this file.
 # ================= END OF USER SETTINGS ====================
 
@@ -34,6 +36,7 @@ BRANCH_ID=${LAKEBASE_BRANCH_ID:-$CONFIG_BRANCH_ID}
 DATABASE=${LAKEBASE_DATABASE:-$CONFIG_DATABASE}
 SQL_DIR=${LAKEBASE_SQL_DIR:-${CONFIG_SQL_DIR:-$SCRIPT_DIR}}
 WORKSPACE_URL=${LAKEBASE_WORKSPACE_URL:-$CONFIG_WORKSPACE_URL}
+WAREHOUSE_ID=${LAKEBASE_WAREHOUSE_ID:-$CONFIG_WAREHOUSE_ID}
 CREATED_BRANCH=''
 
 usage() {
@@ -52,6 +55,8 @@ Actions:
                   is unchanged, and delete ONLY the branch created by this run
   create-branch NAME  Create a branch NAME from the source (1h expiry); times it
   delete-branch NAME  Delete the branch NAME
+  register-catalog NAME  Register the production database in Unity Catalog as NAME
+  query "SQL"     Run SQL on a serverless warehouse; print the result as a table
   help            Show this help
 
 Options (or corresponding environment variables):
@@ -61,6 +66,7 @@ Options (or corresponding environment variables):
   --database NAME   LAKEBASE_DATABASE       default: databricks_postgres
   --sql-dir DIR     LAKEBASE_SQL_DIR        default: this script's directory
   --host URL        LAKEBASE_WORKSPACE_URL  required for login
+  --warehouse ID    LAKEBASE_WAREHOUSE_ID   serverless warehouse for query
 
 First edit CONFIG_WORKSPACE_URL and CONFIG_PROJECT_ID at the top of this file.
 Project ID is independent of the local folder name.
@@ -77,6 +83,8 @@ Examples:
   bash lakebase-demo.sh create-branch inventory-test
   bash lakebase-demo.sh connect --branch inventory-test
   bash lakebase-demo.sh delete-branch inventory-test
+  bash lakebase-demo.sh register-catalog lakebase_catalog
+  bash lakebase-demo.sh query "SELECT * FROM lakebase_catalog.public.menu LIMIT 5"
 
 Seed requires you to type the exact target to confirm data deletion.
 Tokens are generated at connection time, never stored in this file or printed.
@@ -266,24 +274,63 @@ delete_branch() {
     die "Delete failed for $PROJECT/branches/$name."
   log "Deleted branch $PROJECT/branches/$name."
 }
+register_catalog() {
+  local name=$1 payload
+  [[ -n "$name" ]] || die 'Usage: register-catalog NAME'
+  [[ "$name" =~ ^[a-z_][a-z0-9_]*$ ]] ||
+    die "Invalid catalog name '$name': use lowercase letters, digits, and underscores."
+  payload=$(jq -n --arg db "$DATABASE" --arg branch "$SOURCE_BRANCH" \
+    '{spec: {postgres_database: $db, branch: $branch}}')
+  log "Registering $SOURCE_BRANCH ($DATABASE) in Unity Catalog as '$name'..."
+  dbx postgres create-catalog "$name" --json "$payload" >/dev/null ||
+    die "Registration failed. Register the production branch, and check you have CREATE CATALOG on the metastore."
+  log "Catalog '$name' registered (read-only)."
+  log "Query it with: bash lakebase-demo.sh query \"SELECT * FROM $name.public.menu LIMIT 5\""
+}
+query_sql() {
+  local sql=$1 wh payload resp state
+  [[ -n "$sql" ]] || die 'Usage: query "SELECT ..."'
+  need jq
+  wh=$WAREHOUSE_ID
+  if [[ -z "$wh" ]]; then
+    wh=$(dbx warehouses list --output json |
+      jq -r '[.[] | select(.enable_serverless_compute == true) | .id][0] // empty') || true
+    [[ -n "$wh" ]] ||
+      die 'No serverless warehouse found. Set CONFIG_WAREHOUSE_ID (run: databricks warehouses list). Lakebase catalogs need a serverless warehouse.'
+  fi
+  payload=$(jq -n --arg wh "$wh" --arg stmt "$sql" \
+    '{warehouse_id: $wh, statement: $stmt, wait_timeout: "30s"}')
+  resp=$(dbx api post /api/2.0/sql/statements --json "$payload") ||
+    die 'Statement Execution API call failed.'
+  state=$(printf '%s' "$resp" | jq -r '.status.state // "UNKNOWN"')
+  [[ "$state" == "SUCCEEDED" ]] ||
+    die "Query $state: $(printf '%s' "$resp" | jq -r '.status.error.message // "check the warehouse is serverless and the catalog is accessible."')"
+  if command -v column >/dev/null 2>&1; then
+    printf '%s' "$resp" | jq -r '([(.manifest.schema.columns // [])[].name]), ((.result.data_array // [])[]) | @tsv' | column -t -s "$(printf '\t')"
+  else
+    printf '%s' "$resp" | jq -r '([(.manifest.schema.columns // [])[].name]), ((.result.data_array // [])[]) | @tsv'
+  fi
+}
 
 ACTION=${1:-help}
 [[ $# -eq 0 ]] || shift
 case "$ACTION" in
   help|-h|--help) usage; exit 0 ;;
-  login|projects|create-project|status|connect|seed|verify|branch-demo|create-branch|delete-branch) ;;
+  login|projects|create-project|status|connect|seed|verify|branch-demo|create-branch|delete-branch|register-catalog|query) ;;
   *) usage >&2; die "Unknown action: $ACTION" ;;
 esac
-BRANCH_ARG=""
-if [[ "$ACTION" == create-branch || "$ACTION" == delete-branch ]]; then
-  if [[ $# -gt 0 && "$1" != --* ]]; then BRANCH_ARG=$1; shift; fi
-fi
+ARG1=""
+case "$ACTION" in
+  create-branch|delete-branch|register-catalog|query)
+    if [[ $# -gt 0 && "$1" != --* ]]; then ARG1=$1; shift; fi ;;
+esac
 while [[ $# -gt 0 ]]; do
   [[ $# -ge 2 && -n "$2" ]] || die "Missing value for $1"
   case "$1" in
     --profile) PROFILE=$2 ;; --project) PROJECT_ID=$2 ;;
     --branch) BRANCH_ID=$2 ;; --database) DATABASE=$2 ;;
     --sql-dir) SQL_DIR=$2 ;; --host) WORKSPACE_URL=$2 ;;
+    --warehouse) WAREHOUSE_ID=$2 ;;
     *) die "Unknown option: $1" ;;
   esac
   shift 2
@@ -296,6 +343,7 @@ if [[ "$ACTION" == login ]]; then
 fi
 need jq
 if [[ "$ACTION" == projects ]]; then dbx postgres list-projects --output json; exit 0; fi
+if [[ "$ACTION" == query ]]; then query_sql "$ARG1"; exit 0; fi
 [[ -n "$PROJECT_ID" ]] || die 'Set CONFIG_PROJECT_ID at the top of this file, set LAKEBASE_PROJECT_ID, or pass --project ID.'
 valid_id "$PROJECT_ID"
 [[ -z "$BRANCH_ID" ]] || valid_id "$BRANCH_ID"
@@ -308,9 +356,10 @@ if [[ "$ACTION" == create-project ]]; then
   dbx postgres create-project "$PROJECT_ID" --json "$payload"
   exit 0
 fi
-if [[ "$ACTION" == delete-branch ]]; then delete_branch "$BRANCH_ARG"; exit 0; fi
+if [[ "$ACTION" == delete-branch ]]; then delete_branch "$ARG1"; exit 0; fi
 resolve_source
-if [[ "$ACTION" == create-branch ]]; then create_branch "$BRANCH_ARG"; exit 0; fi
+if [[ "$ACTION" == create-branch ]]; then create_branch "$ARG1"; exit 0; fi
+if [[ "$ACTION" == register-catalog ]]; then register_catalog "$ARG1"; exit 0; fi
 resolve_endpoint "$SOURCE_BRANCH"
 SOURCE_ENDPOINT=$DB_ENDPOINT
 SOURCE_HOST=$DB_HOST
