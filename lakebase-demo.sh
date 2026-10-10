@@ -288,7 +288,7 @@ register_catalog() {
   log "Query it with: bash lakebase-demo.sh query \"SELECT * FROM $name.public.menu LIMIT 5\""
 }
 query_sql() {
-  local sql=$1 wh payload resp state
+  local sql=$1 wh payload resp state sid tries
   [[ -n "$sql" ]] || die 'Usage: query "SELECT ..."'
   need jq
   wh=$WAREHOUSE_ID
@@ -299,10 +299,22 @@ query_sql() {
       die 'No serverless warehouse found. Set CONFIG_WAREHOUSE_ID (run: databricks warehouses list). Lakebase catalogs need a serverless warehouse.'
   fi
   payload=$(jq -n --arg wh "$wh" --arg stmt "$sql" \
-    '{warehouse_id: $wh, statement: $stmt, wait_timeout: "30s"}')
+    '{warehouse_id: $wh, statement: $stmt, wait_timeout: "50s"}')
   resp=$(dbx api post /api/2.0/sql/statements --json "$payload") ||
     die 'Statement Execution API call failed.'
   state=$(printf '%s' "$resp" | jq -r '.status.state // "UNKNOWN"')
+  # A cold or waking warehouse can still be PENDING/RUNNING when wait_timeout elapses.
+  # Poll the statement until it reaches a terminal state instead of treating that as failure.
+  sid=$(printf '%s' "$resp" | jq -r '.statement_id // empty')
+  tries=0
+  while [[ "$state" == "PENDING" || "$state" == "RUNNING" ]]; do
+    [[ -n "$sid" ]] || die "Statement is $state but the API returned no statement_id to poll."
+    (( tries++ < 150 )) || die "Query still $state after ~5 minutes; check the warehouse and retry."
+    sleep 2
+    resp=$(dbx api get "/api/2.0/sql/statements/$sid") ||
+      die 'Polling the statement status failed.'
+    state=$(printf '%s' "$resp" | jq -r '.status.state // "UNKNOWN"')
+  done
   [[ "$state" == "SUCCEEDED" ]] ||
     die "Query $state: $(printf '%s' "$resp" | jq -r '.status.error.message // "check the warehouse is serverless and the catalog is accessible."')"
   if command -v column >/dev/null 2>&1; then
