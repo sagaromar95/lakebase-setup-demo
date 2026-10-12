@@ -12,3 +12,8 @@ venv/
 .env
 *.token
 .lakebase_token
+
+# Blog 3 (CLI) — deferred, kept local only
+lakebase-demo.sh
+README-cli.md
+tests/
