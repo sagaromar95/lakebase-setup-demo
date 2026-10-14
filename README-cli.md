@@ -4,7 +4,7 @@ One Bash file, separate actions. Use VS Code to read the script and its integrat
 
 ## Add it to the companion repository
 
-Place `lakebase-demo.sh` and this README in the repository root, alongside `schema.sql` and `seed.sql`. Optionally add `tests/test_cli.py` for offline verification. The script does not download or execute remote SQL. It uses the local schema and seed files you can inspect in the editor.
+Place `lakebase-demo.sh` and this README in the repository root, alongside `schema.sql` and `seed.sql`. Optionally add `tests/test_cli.py` for offline verification. The script does not download or execute remote SQL. It uses the local schema and seed files you can inspect in the editor
 
 Expected layout:
 
