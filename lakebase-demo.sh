@@ -16,8 +16,8 @@ set -euo pipefail
 # Example URL: https://your-workspace.cloud.databricks.com
 # Example ID: pizza-demo (independent of your local folder name).
 # For an existing project, use its actual resource ID, not its display name.
-CONFIG_WORKSPACE_URL="https://dbc-df6a5fb1-7d2d.cloud.databricks.com"
-CONFIG_PROJECT_ID="databricks-lakebase-setup-cli"
+CONFIG_WORKSPACE_URL=""
+CONFIG_PROJECT_ID=""
 
 # Optional settings: these defaults work for the companion walkthrough.
 CONFIG_PROFILE="lakebase-demo"
